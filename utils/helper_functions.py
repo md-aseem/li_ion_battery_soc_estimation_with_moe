@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from utils.data_import import import_datafile
 import numpy as np
@@ -6,31 +8,15 @@ import zipfile
 import re
 import pandas as pd
 
-def plot_data(df, x_axis= 'run_time', y_axes:list = None, condition_col=None, condition_value=None):
 
-    if y_axes is None:
-        y_axes = ['c_cur', 'c_vol']
-    if condition_value and condition_col:
-        plot_df = df[df[condition_col] == condition_value]
-    else:
-        plot_df = df
-
-    for y_axis in y_axes:
-        plt.plot(plot_df[x_axis], plot_df[y_axis], label=y_axis)
-    plt.xlabel(str(x_axis))
-    plt.legend()
-    plt.show()
-
-
-class ReadData:
+class ReadAndProcessData:
     def __init__(self, data_params):
         self.data_params = data_params
-        self.relevant_csv_list = self.provide_relevant_filenames(data_params)
-        self.df = None
+        self._relevant_csv_list = self._provide_relevant_filenames(data_params)
 
     def load_dfs(self, data_path):
 
-        relevant_filenames = self.relevant_csv_list
+        relevant_filenames = self._relevant_csv_list
         df_list = []
         filenames = []
         all_zips = os.listdir(data_path)
@@ -49,17 +35,19 @@ class ReadData:
                                 rpt=rpt,
                                 temperature=int(temperature)
                             )
-                            df = self.identify_test_part(df)
+                            df = self._identify_test_part(df)
+                            if self.data_params.time_res:
+                                df = self.interpolate_data(df, time_res=self.data_params.time_res)
                             filenames.append(filename)
                             df_list.append(df)
 
         print(f"The number of files loaded: {len(df_list)}\n",
               f"File Names are: {filenames}")
 
-        self.df = pd.concat(df_list, axis=0)
-        return self.df
+        df = pd.concat(df_list, axis=0)
+        return df
 
-    def provide_relevant_filenames(self, data_params):
+    def _provide_relevant_filenames(self, data_params):
 
         stages = data_params.stages
         aging_types = data_params.aging_types
@@ -78,7 +66,7 @@ class ReadData:
                         for rpt in rpts:
                             for temp in temps:
                                 relevant_csv_list.append(f"TP_{aging_type}{testpoint:02d}_{cell:02d}_{file_number:02d}_{rpt}_T{temp}.csv")
-        self.relevant_csv_list = relevant_csv_list
+        self._relevant_csv_list = relevant_csv_list
         return relevant_csv_list
 
     def extract_parameters(self, file_name):
@@ -93,7 +81,7 @@ class ReadData:
 
         return aging_type, testpoint, rpt, temperature
 
-    def identify_test_part(self, df):
+    def _identify_test_part(self, df):
 
         pocv_starting_index = df[df['step_type'] > 30].index[0]
         hppc_starting_index = df[df['step_type'] > 100].index[0]
@@ -110,6 +98,43 @@ class ReadData:
 
         return df
 
+    def interpolate_data(self, df,
+                         time_col: str = "run_time",
+                         time_res: float = 1):
 
+        if any(df.duplicated(subset=[time_col])):
+            print(f"Caution: The column {time_col} contains {len(df) - len(df[~(df.duplicated(subset=[time_col]))])} duplicate values."
+                  f"\nProceeding by removing the duplicates.")
+            df = df[~(df.duplicated(subset=[time_col]))]
 
+        df = df.sort_values(time_col).set_index(time_col)
+
+        constant_time_index = pd.Index(np.arange(int(df.index.min()),
+                                  int(df.index.max())+1, time_res))
+
+        interpolated_df = df.reindex(constant_time_index)
+
+        numeric_cols = interpolated_df.select_dtypes(include="number").columns
+        non_numeric_cols = interpolated_df.select_dtypes(exclude="number").columns
+
+        interpolated_df[numeric_cols] = interpolated_df[numeric_cols].interpolate()
+        interpolated_df[non_numeric_cols] = interpolated_df[non_numeric_cols].ffill()
+
+        interpolated_df = interpolated_df.reset_index().rename(columns={"index": time_col})
+
+        return interpolated_df
+
+    def plot_data(self, df, x_axis= 'run_time', y_axes:list = None, conditions: dict=None, condition_value=None):
+
+        if y_axes is None:
+            y_axes = ['c_cur', 'c_vol']
+        if conditions:
+            for col, value in conditions.items():
+                df = df[df[col] == value]
+
+        for y_axis in y_axes:
+            plt.plot(df[x_axis], df[y_axis], label=y_axis)
+        plt.xlabel(str(x_axis))
+        plt.legend()
+        plt.show()
 
