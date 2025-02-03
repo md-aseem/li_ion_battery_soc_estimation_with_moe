@@ -1,4 +1,6 @@
 import matplotlib
+from torchvision.ops.misc import interpolate
+
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from utils.data_import import import_datafile
@@ -107,24 +109,27 @@ class ReadAndProcessData:
                   f"\nProceeding by removing the duplicates.")
             df = df[~(df.duplicated(subset=[time_col]))]
 
-        df = df.sort_values(time_col).set_index(time_col)
+        df = df.sort_values(time_col)
 
-        constant_time_index = pd.Index(np.arange(int(df.index.min()),
-                                  int(df.index.max())+1, time_res))
+        constant_time_series = np.arange(int(df.index.min()), int(df.index.max())+1, time_res)
 
-        interpolated_df = df.reindex(constant_time_index)
+        numeric_cols = df.select_dtypes(include="number").columns
+        non_numeric_cols = df.select_dtypes(exclude="number").columns
 
-        numeric_cols = interpolated_df.select_dtypes(include="number").columns
-        non_numeric_cols = interpolated_df.select_dtypes(exclude="number").columns
+        interpolated_df = pd.DataFrame({time_col: constant_time_series})
+        for col in numeric_cols:
+            new_col_data = np.interp(constant_time_series, df[time_col], df[col])
+            interpolated_df[col] = new_col_data
 
-        interpolated_df[numeric_cols] = interpolated_df[numeric_cols].interpolate()
-        interpolated_df[non_numeric_cols] = interpolated_df[non_numeric_cols].ffill()
-
-        interpolated_df = interpolated_df.reset_index().rename(columns={"index": time_col})
+        interpolated_df = pd.merge_asof(interpolated_df, df[(non_numeric_cols).tolist() + [time_col]], on=time_col, direction='backward')
 
         return interpolated_df
 
-    def plot_data(self, df, x_axis= 'run_time', y_axes:list = None, conditions: dict=None, condition_value=None):
+    def plot(self, df,
+             x_axis='run_time',
+             y_axes:list = None,
+             conditions: dict=None,
+             downsampling_factor: int = 10):
 
         if y_axes is None:
             y_axes = ['c_cur', 'c_vol']
@@ -133,7 +138,7 @@ class ReadAndProcessData:
                 df = df[df[col] == value]
 
         for y_axis in y_axes:
-            plt.plot(df[x_axis], df[y_axis], label=y_axis)
+            plt.plot(df[x_axis][::downsampling_factor], df[y_axis][::downsampling_factor], label=y_axis)
         plt.xlabel(str(x_axis))
         plt.legend()
         plt.show()
