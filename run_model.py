@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-from model.ekf_variants import SimpleEKF
+from kalman_filter.kf_variants import SimpleEKF
 from model.neural_network_model import VoltageNN
 
 # Set seed for reproducibility

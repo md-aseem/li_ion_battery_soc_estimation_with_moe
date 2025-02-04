@@ -1,4 +1,4 @@
-from typing import Optional
+from sklearn.preprocessing import StandardScaler
 from utils.feature_extraction import CapacityAndSOCCalculation, OCVDVACalculation
 import matplotlib
 matplotlib.use('TkAgg')
@@ -11,7 +11,7 @@ import re
 import pandas as pd
 
 
-class ReadAndProcessData:
+class PreprocessData:
     def __init__(self, data_params):
         self.data_params = data_params
         self._relevant_csv_list = self._provide_relevant_filenames(data_params)
@@ -41,10 +41,11 @@ class ReadAndProcessData:
                             if self.data_params.time_res:
                                 df = self.interpolate_data(df, time_res=self.data_params.time_res)
 
-                            capacity_soc_cal = CapacityAndSOCCalculation()
-                            df = capacity_soc_cal.add_capacity_soc_cols(df)
-                            ocv_dva_calc = OCVDVACalculation()
-                            df = ocv_dva_calc.add_ocv_dva(df)
+                            if self.data_params.add_feature_cols:
+                                capacity_soc_cal = CapacityAndSOCCalculation()
+                                df = capacity_soc_cal.add_capacity_soc_cols(df)
+                                ocv_dva_calc = OCVDVACalculation()
+                                df = ocv_dva_calc.add_ocv_dva(df)
 
                             filenames.append(filename)
                             df_list.append(df)
@@ -159,3 +160,8 @@ class ReadAndProcessData:
             df[f"{seq_col}-{num_point}"] =df[seq_col].shift(num_point).fillna(0)
 
         return df
+
+    def standardize_data(self, df,
+                         scaler=None):
+        # TODO: Implement standard_scaler
+        pass

@@ -58,8 +58,6 @@ class CapacityAndSOCCalculation:
 
         return q
 
-
-
 class OCVDVACalculation:
     def __init__(self):
         pass
