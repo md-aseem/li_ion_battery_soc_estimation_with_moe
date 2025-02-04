@@ -1,6 +1,6 @@
+from typing import Optional
+from utils.feature_extraction import CapacityAndSOCCalculation, OCVDVACalculation
 import matplotlib
-from torchvision.ops.misc import interpolate
-
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from utils.data_import import import_datafile
@@ -40,10 +40,16 @@ class ReadAndProcessData:
                             df = self._identify_test_part(df)
                             if self.data_params.time_res:
                                 df = self.interpolate_data(df, time_res=self.data_params.time_res)
+
+                            capacity_soc_cal = CapacityAndSOCCalculation()
+                            df = capacity_soc_cal.add_capacity_soc_cols(df)
+                            ocv_dva_calc = OCVDVACalculation()
+                            df = ocv_dva_calc.add_ocv_dva(df)
+
                             filenames.append(filename)
                             df_list.append(df)
 
-        print(f"The number of files loaded: {len(df_list)}\n",
+        print(f"The number of files loaded: {len(df_list)}",
               f"File Names are: {filenames}")
 
         df = pd.concat(df_list, axis=0)
@@ -85,16 +91,18 @@ class ReadAndProcessData:
 
     def _identify_test_part(self, df):
 
+        capacity_index = df[(df['step_type'] == 21)].index[0]
         pocv_starting_index = df[df['step_type'] > 30].index[0]
         hppc_starting_index = df[df['step_type'] > 100].index[0]
 
         conditions = [
-            (df.index < pocv_starting_index),
+            (df.index < capacity_index),
+            (df.index >= capacity_index) & (df.index <= pocv_starting_index) ,
             (df.index >= pocv_starting_index) & (df.index <= hppc_starting_index),
             (df.index > hppc_starting_index)
         ]
 
-        test_parts = ['full_charge_discharge', 'pocv', 'hppc']
+        test_parts = ['warming_up', 'capacity_cycle', 'pocv', 'hppc']
 
         df['test_parts'] = np.select(conditions, test_parts, default="NA")
 
@@ -143,3 +151,11 @@ class ReadAndProcessData:
         plt.legend()
         plt.show()
 
+    def add_sequence_data(self, df: pd.DataFrame,
+                          seq_col: str='c_cur',
+                          num_points: int=5):
+
+        for num_point in range(1, num_points+1):
+            df[f"{seq_col}-{num_point}"] =df[seq_col].shift(num_point).fillna(0)
+
+        return df
