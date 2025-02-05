@@ -9,7 +9,9 @@ if __name__ == "__main__":
     read_process_data = PreprocessData(data_params)
     start_time = time.time()
     df = read_process_data.load_dfs(data_path)
-    df = read_process_data.add_sequence_data(df, 'c_cur', num_points=5)
+    df = read_process_data.add_sequence_data(df, 'c_cur', num_points=data_params.num_points)
+    feature_cols = ['c_cur', 'soc', 'ocv', 'dva'] + [f"c_cur-{i+1}" for i in range(data_params.num_points)]
+    df, _ = read_process_data.standardize_data(df, feature_cols=feature_cols)
     print(f"Total Time to Load: {(time.time() - start_time):0f} seconds")
     print(f"Shape of df: {df.shape}")
 

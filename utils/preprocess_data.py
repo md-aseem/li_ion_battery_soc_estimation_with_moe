@@ -4,6 +4,7 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from utils.data_import import import_datafile
+from typing import Dict
 import numpy as np
 import os
 import zipfile
@@ -103,9 +104,9 @@ class PreprocessData:
             (df.index > hppc_starting_index)
         ]
 
-        test_parts = ['warming_up', 'capacity_cycle', 'pocv', 'hppc']
+        testparts = ['warming_up', 'capacity_cycle', 'pocv', 'hppc']
 
-        df['test_parts'] = np.select(conditions, test_parts, default="NA")
+        df['testpart'] = np.select(conditions, testparts, default="NA")
 
         return df
 
@@ -138,7 +139,7 @@ class PreprocessData:
              x_axis='run_time',
              y_axes:list = None,
              conditions: dict=None,
-             downsampling_factor: int = 10):
+             downsampling_factor: int = 100):
 
         if y_axes is None:
             y_axes = ['c_cur', 'c_vol']
@@ -156,12 +157,26 @@ class PreprocessData:
                           seq_col: str='c_cur',
                           num_points: int=5):
 
-        for num_point in range(1, num_points+1):
-            df[f"{seq_col}-{num_point}"] =df[seq_col].shift(num_point).fillna(0)
+        shifted_cols = {
+            f"{seq_col}-{num_point}": df[seq_col].shift(num_point).fillna(0)
+            for num_point in range(1, num_points + 1)
+        }
 
+        df = pd.concat([df, pd.DataFrame(shifted_cols, index=df.index)], axis=1)
         return df
 
-    def standardize_data(self, df,
+    def standardize_data(self, df, feature_cols,
                          scaler=None):
-        # TODO: Implement standard_scaler
-        pass
+        if not scaler:
+            scaler = StandardScaler()
+            scaler.fit(df[feature_cols])
+
+        df[feature_cols] = scaler.transform(df[feature_cols])
+        return df, scaler
+
+    def fitler_data(self, df: pd.DataFrame, filtering_conditions: Dict):
+
+        for col, value in filtering_conditions.items():
+            df = df[df[col] == value]
+        return df
+

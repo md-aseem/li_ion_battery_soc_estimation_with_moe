@@ -12,14 +12,14 @@ class DataParams:
     cells: List[int] = field(default_factory= lambda: list(np.arange(0, 2, 1)))
     stages: List[int] = field(default_factory=lambda: [1, 2])
 
-    time_res: float = 0.5
-    num_points: int = 10
+    time_res: float = 1
+    num_points: int = 200
     add_feature_cols: bool = True
 
 @dataclass
 class NeuralNetworkParams:
     learning_rate : float = 1e-3
-    n_epochs: int = 5000
-    batch_size: int = 64
-    hidden_dim: int = 32
+    n_epochs: int = 100
+    batch_size: int = 1600
+    hidden_dim: int = 64
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
