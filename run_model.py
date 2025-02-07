@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 from kalman_filter.kf_variants import SimpleEKF
-from model.neural_network_model import VoltageNN
+from model.mixture_of_experts_nn import VoltageNN
 
 # Set seed for reproducibility
 np.random.seed(42)

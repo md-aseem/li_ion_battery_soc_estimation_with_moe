@@ -7,9 +7,11 @@ matplotlib.use('TkAgg')
 from matplotlib import pyplot as plt
 from utils.preprocess_data import PreprocessData
 from torch.utils.data import Dataset, DataLoader
-from config import DataParams, NeuralNetworkParams
+from config import DataParams, TrainEvalParams, VanillaNNParams, MoENNParams
 from model.neural_network_model import VoltageNN
+from model.mixture_of_experts_nn import MoENeuralNetwork
 import numpy as np
+from utils.helpers import parameter_count
 
 class BatteryDataset(Dataset):
     def __init__(self, df, feature_cols: List[str], target_col: str):
@@ -53,8 +55,15 @@ class Trainer:
 
                 x, y = x.to(self.device), y.to(self.device)
                 optimizer.zero_grad()
-                y_pred = self.model(x)
-                loss = loss_fn(y_pred.squeeze(-1), y)
+
+                model_out = self.model(x)
+                if isinstance(model_out, tuple): # moe model outputs gate_loss too
+                    y_pred, gate_loss = model_out
+                else:
+                    gate_loss = 0 # no gate loss for regular NNs
+                    y_pred = model_out
+
+                loss = loss_fn(y_pred.squeeze(-1), y) + gate_loss
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item()
@@ -93,6 +102,7 @@ class Trainer:
         pass
 
 if __name__ == "__main__":
+    data_loading_start_time = time.time()
     data_path = '../data/Stage_1'
     data_params = DataParams()
     read_process_data = PreprocessData(data_params)
@@ -100,27 +110,34 @@ if __name__ == "__main__":
     filtering_conditions = {"testpart": "hppc"}
     df = read_process_data.fitler_data(df, filtering_conditions)
     read_process_data.plot(df, y_axes=["c_vol", "soc"], conditions={"testpoint": 1}) # plotting the data before training
-    df = read_process_data.add_sequence_data(df, 'c_cur', num_points=data_params.num_points)
-    feature_cols = ['c_cur', 'soc', 'ocv', 'dva', 'ocv_ch', 'ocv_dch'] + [f"c_cur-{i + 1}" for i in range(data_params.num_points)]
-    target_col = 'c_vol'
+    df = read_process_data.add_sequence_data(df, ['c_cur', 'c_vol'], num_points=data_params.num_points)
+    feature_cols = ['c_cur', 'c_vol', 'ocv_ch', 'ocv_dch', 'dva_ch', 'dva_dch', 'c_surf_temp'] + [f"c_cur-{i + 1}" for i in range(data_params.num_points)] + [f"c_vol-{i + 1}" for i in range(data_params.num_points)]
+    target_col = 'soc'
     df, _ = read_process_data.standardize_data(df, feature_cols=feature_cols)
+    data_loading_end_time = time.time()
 
-    model = VoltageNN(in_features=len(feature_cols),
-                      hidden_feature=NeuralNetworkParams.hidden_dim,
-                      out_features=1).to(device=NeuralNetworkParams.device)
+    train_eval_params = TrainEvalParams()
+    moe_nn_params = VanillaNNParams()
+    nn_model = VoltageNN(in_features=len(feature_cols),
+                      hidden_feature=moe_nn_params.hidden_dim,
+                      out_features=1).to(device=train_eval_params.device)
 
-    nn_params = NeuralNetworkParams()
+    print(f"Parameter Count: {parameter_count(nn_model)}")
+    moe_nn_params = MoENNParams()
+    moe_model = MoENeuralNetwork(in_features=len(feature_cols), out_features=1, moe_nn_params=moe_nn_params).to(device=train_eval_params.device)
+    print(f"Parameter Count(Moe): {parameter_count(moe_model)}")
+
     training_dataset = BatteryDataset(df[df['testpoint'] <= 3], feature_cols, target_col)
     val_dataset = BatteryDataset(df[df['testpoint'] == 4], feature_cols, target_col)
 
-    train_loader = DataLoader(training_dataset, batch_size=nn_params.batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=nn_params.batch_size, shuffle=False)
+    train_loader = DataLoader(training_dataset, batch_size=train_eval_params.batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=train_eval_params.batch_size, shuffle=False)
 
-    start_time = time.time()
-    trainer = Trainer(model, nn_params, nn_params.device)
-    model, losses = trainer.train(train_loader)
-    end_time = time.time()
-    print(f"Training Time: {end_time - start_time}:2f")
+    training_start_time = time.time()
+    trainer = Trainer(moe_model, train_eval_params, train_eval_params.device)
+    #model, losses = trainer.train(train_loader)
+    training_end_time = time.time()
+    print(f"Training Time: {(training_end_time - training_start_time):.2f} secs")
     trainer.evaluate(val_loader)
 
     plt.figure()

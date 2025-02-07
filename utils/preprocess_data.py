@@ -1,10 +1,12 @@
+from dataclasses import field
+import warnings
 from sklearn.preprocessing import StandardScaler
 from utils.feature_extraction import CapacityAndSOCCalculation, OCVDVACalculation
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from utils.data_import import import_datafile
-from typing import Dict
+from typing import Dict, List, Optional
 import numpy as np
 import os
 import zipfile
@@ -115,8 +117,8 @@ class PreprocessData:
                          time_res: float = 1):
 
         if any(df.duplicated(subset=[time_col])):
-            print(f"Caution: The column {time_col} contains {len(df) - len(df[~(df.duplicated(subset=[time_col]))])} duplicate values."
-                  f"\nProceeding by removing the duplicates.")
+            warnings.warn(f"Caution: The column {time_col} contains {len(df) - len(df[~(df.duplicated(subset=[time_col]))])} duplicate values."
+                  f"\nProceeding by removing the duplicates.", UserWarning)
             df = df[~(df.duplicated(subset=[time_col]))]
 
         df = df.sort_values(time_col)
@@ -154,15 +156,17 @@ class PreprocessData:
         plt.show()
 
     def add_sequence_data(self, df: pd.DataFrame,
-                          seq_col: str='c_cur',
-                          num_points: int=5):
+                          seq_cols: Optional[List[str]] = None,
+                          num_points: int = 5) -> pd.DataFrame:
 
-        shifted_cols = {
-            f"{seq_col}-{num_point}": df[seq_col].shift(num_point).fillna(0)
-            for num_point in range(1, num_points + 1)
-        }
+        if not seq_cols:
+            seq_cols = ['c_cur', 'c_vol']
 
-        df = pd.concat([df, pd.DataFrame(shifted_cols, index=df.index)], axis=1)
+        shifted_cols = {}
+        for seq_col in seq_cols:
+            for num_point in range(1, num_points + 1):
+                shifted_cols[f"{seq_col}-{num_point}"] = df[seq_col].shift(num_point)
+        df = pd.concat([df, pd.DataFrame(shifted_cols, index=df.index)], axis=1).fillna(0)
         return df
 
     def standardize_data(self, df, feature_cols,

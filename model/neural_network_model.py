@@ -24,8 +24,6 @@ class VoltageNN(nn.Module):
             MexicanHat(),
             nn.Linear(hidden_feature, hidden_feature),
             MexicanHat(),
-            nn.Linear(hidden_feature, hidden_feature),
-            MexicanHat(),
             nn.Linear(hidden_feature, out_features)  # Output: Voltage
         )
 
