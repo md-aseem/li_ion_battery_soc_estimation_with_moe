@@ -1,12 +1,12 @@
 import time
-from config import DataParams
-from utils.preprocess_data import PreprocessData
+from config import MultiStageDataParams
+from utils.preprocess_data import PreprocessMultiStageData
 
 if __name__ == "__main__":
 
     data_path = 'data/Stage_1'
-    data_params = DataParams()
-    read_process_data = PreprocessData(data_params)
+    data_params = MultiStageDataParams()
+    read_process_data = PreprocessMultiStageData(data_params)
     start_time = time.time()
     df = read_process_data.load_dfs(data_path)
     df = read_process_data.add_sequence_data(df, 'c_cur', num_points=data_params.num_points)

@@ -4,7 +4,7 @@ from typing import List
 import torch
 
 @dataclass
-class DataParams:
+class MultiStageDataParams:
     temps: List[int] = field(default_factory=lambda: [45])
     aging_types: List[str] = field(default_factory=lambda: ['z'])
     testpoints: np.ndarray = field(default_factory=lambda: np.arange(0, 2, 1))
@@ -15,6 +15,10 @@ class DataParams:
     time_res: float = 1
     num_points: int = 200
     add_feature_cols: bool = True
+
+@dataclass
+class CalceDataParams:
+    temps: List[int] = field(default_factory=lambda: [0, 10, 20, 25, 30, 40, 50])
 
 @dataclass
 class TrainEvalParams:

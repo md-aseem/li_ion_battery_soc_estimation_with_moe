@@ -5,9 +5,9 @@ import torch.nn as nn
 import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib import pyplot as plt
-from utils.preprocess_data import PreprocessData
+from utils.preprocess_data import PreprocessMultiStageData
 from torch.utils.data import Dataset, DataLoader
-from config import DataParams, TrainEvalParams, VanillaNNParams, MoENNParams
+from config import MultiStageDataParams, TrainEvalParams, VanillaNNParams, MoENNParams
 from model.neural_network_model import VoltageNN
 from model.mixture_of_experts_nn import MoENeuralNetwork
 import numpy as np
@@ -103,15 +103,16 @@ class Trainer:
 
 if __name__ == "__main__":
     data_loading_start_time = time.time()
-    data_path = '../data/Stage_1'
-    data_params = DataParams()
-    read_process_data = PreprocessData(data_params)
+    data_path = '../data/multi_stage_degradation/Stage_1'
+    data_params = MultiStageDataParams()
+    read_process_data = PreprocessMultiStageData(data_params)
     df = read_process_data.load_dfs(data_path)
     filtering_conditions = {"testpart": "hppc"}
-    df = read_process_data.fitler_data(df, filtering_conditions)
+    df = read_process_data.filter(df, filtering_conditions)
     read_process_data.plot(df, y_axes=["c_vol", "soc"], conditions={"testpoint": 1}) # plotting the data before training
     df = read_process_data.add_sequence_data(df, ['c_cur', 'c_vol'], num_points=data_params.num_points)
-    feature_cols = ['c_cur', 'c_vol', 'ocv_ch', 'ocv_dch', 'dva_ch', 'dva_dch', 'c_surf_temp'] + [f"c_cur-{i + 1}" for i in range(data_params.num_points)] + [f"c_vol-{i + 1}" for i in range(data_params.num_points)]
+
+    feature_cols = ['c_cur', 'c_vol', 'c_surf_temp', 'ocv'] + [f"c_cur-{i + 1}" for i in range(data_params.num_points)] + [f"c_vol-{i + 1}" for i in range(data_params.num_points)]
     target_col = 'soc'
     df, _ = read_process_data.standardize_data(df, feature_cols=feature_cols)
     data_loading_end_time = time.time()
@@ -135,7 +136,7 @@ if __name__ == "__main__":
 
     training_start_time = time.time()
     trainer = Trainer(moe_model, train_eval_params, train_eval_params.device)
-    #model, losses = trainer.train(train_loader)
+    model, losses = trainer.train(train_loader)
     training_end_time = time.time()
     print(f"Training Time: {(training_end_time - training_start_time):.2f} secs")
     trainer.evaluate(val_loader)
