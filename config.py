@@ -13,18 +13,20 @@ class MultiStageDataParams:
     stages: List[int] = field(default_factory=lambda: [1, 2])
 
     time_res: float = 1
-    num_points: int = 200
+    history_length: int = 200
     add_feature_cols: bool = True
 
 @dataclass
 class CalceDataParams:
     temps: List[int] = field(default_factory=lambda: [0, 10, 20, 25, 30, 40, 50])
+    history_length: int = 100
+    time_res: float = 1
 
 @dataclass
 class TrainEvalParams:
     learning_rate : float = 1e-3
     n_epochs: int = 50
-    batch_size: int = 1600
+    batch_size: int = 512
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 @dataclass
@@ -35,9 +37,9 @@ class VanillaNNParams:
 class MoENNParams:
 
     n_experts: int = 8
-    top_k: int = 2
-    n_layers_per_expert: int = 4
-    hidden_dim: int = 32
+    top_k: int = 1
+    n_layers_per_expert: int = 1
+    hidden_dim: int = 64
     gating_dim: int = 32
-    gating_noise_std: float = 1e-2
-    balancing_coef: float= 1e-2
+    gating_noise_std: float = 1e-4
+    balancing_coef: float= 1e-3

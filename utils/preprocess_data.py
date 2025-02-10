@@ -47,7 +47,7 @@ class BasePreProcess:
 
     def standardize_data(self, df, feature_cols,
                          scaler=None):
-        if not scaler:
+        if scaler is None:
             scaler = StandardScaler()
             scaler.fit(df[feature_cols])
 
@@ -57,7 +57,7 @@ class BasePreProcess:
     def filter(self, df: pd.DataFrame, filtering_conditions: Dict):
 
         for col, value in filtering_conditions.items():
-            df = df[df[col] == value]
+            df = df[df[col].isin(value)]
         return df
 
     def plot(self, df,
@@ -71,8 +71,11 @@ class BasePreProcess:
                 df = df[df[col] == value]
 
         fig, ax = plt.subplots(len(y_axes), 1, sharex=True)
+        if not isinstance(ax, (list, np.ndarray)):
+            ax = [ax]
+
         for i, y_axis in enumerate(y_axes):
-            ax[i].plot(df[x_axis][::downsampling_factor], df[y_axis][::downsampling_factor], label=y_axis)
+            ax[i].plot(df[x_axis][::downsampling_factor], df[y_axis][::downsampling_factor], 'o', label=y_axis)
             ax[i].set_ylabel(str(y_axis))
             ax[i].grid(True)
         plt.xlabel(str(x_axis))
@@ -81,13 +84,13 @@ class BasePreProcess:
 
     def add_sequence_data(self, df: pd.DataFrame,
                           seq_cols: List[str],
-                          num_points: int = 5) -> pd.DataFrame:
+                          history_length: int = 5) -> pd.DataFrame:
 
         shifted_cols = {}
         for seq_col in seq_cols:
-            for num_point in range(1, num_points + 1):
+            for num_point in range(1, history_length + 1):
                 shifted_cols[f"{seq_col}-{num_point}"] = df[seq_col].shift(num_point)
-        df = pd.concat([df, pd.DataFrame(shifted_cols, index=df.index)], axis=1).fillna(0)
+        df = pd.concat([df, pd.DataFrame(shifted_cols, index=df.index)], axis=1).dropna(axis=0)
         return df
 
 
@@ -201,14 +204,12 @@ class PreprocessCalceA123(BasePreProcess):
         df_list = []
         for file_path in glob.glob(os.path.join(data_path, "**", "*.xlsx"), recursive=True):
             file_name = os.path.basename(file_path)
-            print(file_name)
             df = pd.read_excel(file_path, sheet_name="Sheet1")
             df = self.interpolate_data(df, time_col="Test_Time(s)", time_res=0.5)
             temp = self._extract_parameters(file_name)
             df['amb_temp'] = temp
             df = self._identify_test_part(df)
             df = self.soc_calculation(df)
-            self.plot(df, x_axis='Test_Time(s)' , y_axes=['soc', 'Voltage(V)', "Current(A)"], downsampling_factor=10)
             df_list.append(df)
 
         df = pd.concat(df_list, axis=0)
@@ -224,7 +225,7 @@ class PreprocessCalceA123(BasePreProcess):
         charging_indices = [idx for i in range(len(charging_start_indices)) for idx in (charging_start_indices[i], charging_end_indices[i])] + [df.index[-1]]
 
         df['testpart'] = "None"
-        testparts = ["charging_1", "DST", "charging_2", "UD06", "charging_3", "FUD"]
+        testparts = ["charging_1", "DST", "charging_2", "US06", "charging_3", "FUD"]
         for i in range(len(charging_indices)-1):
             current_indices = (df.index >= charging_indices[i]) & (df.index < charging_indices[i+1])
             df.loc[current_indices, 'testpart'] = testparts[i]

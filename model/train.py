@@ -5,9 +5,9 @@ import torch.nn as nn
 import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib import pyplot as plt
-from utils.preprocess_data import PreprocessMultiStageData
+from utils.preprocess_data import PreprocessCalceA123
 from torch.utils.data import Dataset, DataLoader
-from config import MultiStageDataParams, TrainEvalParams, VanillaNNParams, MoENNParams
+from config import TrainEvalParams, VanillaNNParams, MoENNParams, CalceDataParams
 from model.neural_network_model import VoltageNN
 from model.mixture_of_experts_nn import MoENeuralNetwork
 import numpy as np
@@ -88,7 +88,13 @@ class Trainer:
         with torch.no_grad():
             for x, y in val_loader:
                 x, y = x.to(self.device), y.to(self.device)
-                y_pred = self.model(x)
+                model_out = self.model(x)
+                if isinstance(model_out, tuple): # moe model outputs gate_loss too
+                    y_pred, gate_loss = model_out
+                else:
+                    gate_loss = 0 # no gate loss for regular NNs
+                    y_pred = model_out
+
                 all_y.append(y.cpu().numpy())
                 all_y_pred.append(y_pred.cpu().numpy())
 
@@ -103,36 +109,38 @@ class Trainer:
 
 if __name__ == "__main__":
     data_loading_start_time = time.time()
-    data_path = '../data/multi_stage_degradation/Stage_1'
-    data_params = MultiStageDataParams()
-    read_process_data = PreprocessMultiStageData(data_params)
-    df = read_process_data.load_dfs(data_path)
-    filtering_conditions = {"testpart": "hppc"}
-    df = read_process_data.filter(df, filtering_conditions)
-    read_process_data.plot(df, y_axes=["c_vol", "soc"], conditions={"testpoint": 1}) # plotting the data before training
-    df = read_process_data.add_sequence_data(df, ['c_cur', 'c_vol'], num_points=data_params.num_points)
+    data_params = CalceDataParams()
+    preprocess_calce = PreprocessCalceA123()
+    drive_cycle_path = r"..\data\calce_lfp\drive_cycles"
+    df = preprocess_calce.load_dfs(drive_cycle_path)
 
-    feature_cols = ['c_cur', 'c_vol', 'c_surf_temp', 'ocv'] + [f"c_cur-{i + 1}" for i in range(data_params.num_points)] + [f"c_vol-{i + 1}" for i in range(data_params.num_points)]
+    feature_cols = ['Current(A)', 'Voltage(V)', 'Temperature (C)_1', 'amb_temp'] + [f"Voltage(V)-{i + 1}" for i in range(data_params.history_length)] + [f"Current(A)-{i + 1}" for i in range(data_params.history_length)]
     target_col = 'soc'
-    df, _ = read_process_data.standardize_data(df, feature_cols=feature_cols)
+
+    training_conditions = {"testpart": ["DST", "FUD"]}
+    train_df = preprocess_calce.filter(df, training_conditions)
+    preprocess_calce.plot(train_df, x_axis="Test_Time(s)", y_axes=["Voltage(V)"]) # plotting the data before training
+    train_df = preprocess_calce.add_sequence_data(train_df, ['Current(A)', 'Voltage(V)'], history_length=data_params.history_length)
+
+    test_conditions = {"testpart": ["US06"]}
+    test_df = preprocess_calce.filter(df, test_conditions)
+    test_df = preprocess_calce.add_sequence_data(test_df, ['Current(A)', 'Voltage(V)'], history_length=data_params.history_length)
+
+    train_df, scaler = preprocess_calce.standardize_data(train_df, feature_cols=feature_cols)
+    test_df, _ = preprocess_calce.standardize_data(test_df, feature_cols=feature_cols, scaler=scaler)
+
     data_loading_end_time = time.time()
 
     train_eval_params = TrainEvalParams()
-    moe_nn_params = VanillaNNParams()
-    nn_model = VoltageNN(in_features=len(feature_cols),
-                      hidden_feature=moe_nn_params.hidden_dim,
-                      out_features=1).to(device=train_eval_params.device)
-
-    print(f"Parameter Count: {parameter_count(nn_model)}")
     moe_nn_params = MoENNParams()
     moe_model = MoENeuralNetwork(in_features=len(feature_cols), out_features=1, moe_nn_params=moe_nn_params).to(device=train_eval_params.device)
     print(f"Parameter Count(Moe): {parameter_count(moe_model)}")
 
-    training_dataset = BatteryDataset(df[df['testpoint'] <= 3], feature_cols, target_col)
-    val_dataset = BatteryDataset(df[df['testpoint'] == 4], feature_cols, target_col)
+    training_dataset = BatteryDataset(train_df, feature_cols, target_col)
+    test_dataset = BatteryDataset(test_df, feature_cols, target_col)
 
     train_loader = DataLoader(training_dataset, batch_size=train_eval_params.batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=train_eval_params.batch_size, shuffle=False)
+    val_loader = DataLoader(test_dataset, batch_size=train_eval_params.batch_size, shuffle=False)
 
     training_start_time = time.time()
     trainer = Trainer(moe_model, train_eval_params, train_eval_params.device)

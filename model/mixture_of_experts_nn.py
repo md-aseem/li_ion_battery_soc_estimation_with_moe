@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from config import MoENNParams, TrainEvalParams
+from config import MoENNParams, TrainEvalParams, VanillaNNParams
+
 
 class MexicanHat(nn.Module):
     def __init__(self, alpha_init=1):
@@ -159,9 +160,18 @@ class MoENeuralNetwork(nn.Module):
 
         return x, gate_loss
 
+    def get_active_parameters(self):
 
+        linear_layers_params = list(self.fc1.parameters()) + list(self.fc2.parameters())
+        shared_expert_params = list(self.sparse.shared_expert.parameters())
+        routing_expert_params = list(self.sparse.routing_experts.parameters())
+
+        total_active_params = (sum([p.numel() for p in linear_layers_params]) +
+                               sum([p.numel() for p in shared_expert_params]) +
+                               sum([p.numel() for p in routing_expert_params]) // self.n_experts * self.top_k)
+        return total_active_params
 if __name__ == "__main__":
-    moe_nn_params = MoENNParams()
+    moe_nn_params = MoENNParams(); nn_params = VanillaNNParams()
     train_eval_params = TrainEvalParams()
     device = train_eval_params.device
 
@@ -171,11 +181,12 @@ if __name__ == "__main__":
     x = torch.rand([batch_size, in_features]).to(device)
 
     test_network = MoENeuralNetwork(in_features, out_features, moe_nn_params).to(device)
+    active_params = test_network.get_active_parameters()
+    total_params = sum([p.numel() for p in test_network.parameters()])
+    print(f"Total Params: {total_params}\nActive Params: {active_params}")
     y, gate_loss = test_network(x, return_gate_loss=True)
     print(f"Input Shape: {x.size()}",
           f"\nOutput Shape: {y.size()}")
 
     print(f"Gate Loss: {gate_loss:.3f}")
 
-    for name, p in test_network.named_parameters():
-        print(f"Model Params: {name}: {p.numel()}")
