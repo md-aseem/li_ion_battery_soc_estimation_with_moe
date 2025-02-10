@@ -19,7 +19,7 @@ class BasePreProcess:
         pass
 
     def interpolate_data(self, df,
-                         time_col: str = "run_time",
+                         time_col: str,
                          time_res: float = 1):
 
         if any(df.duplicated(subset=[time_col])):
@@ -80,7 +80,7 @@ class BasePreProcess:
         plt.show()
 
     def add_sequence_data(self, df: pd.DataFrame,
-                          seq_cols: [List[str]],
+                          seq_cols: List[str],
                           num_points: int = 5) -> pd.DataFrame:
 
         shifted_cols = {}
@@ -257,10 +257,9 @@ class PreprocessCalceA123(BasePreProcess):
                         current_col: str = 'Current(A)') -> pd.DataFrame:
 
         capacity = self.capacity_calculation(df)
-
         discharging_phases = ['DST', 'US06', 'FUD']
         df['eta'] = float(1)
-        df.loc[df['testpart'].isin(discharging_phases), 'eta'] = 0.99
+        df.loc[df['testpart'].isin(discharging_phases), 'eta'] = 0.995
 
         soc = np.cumsum(df[current_col] / df['eta'] * df[time_col].diff().fillna(0)) / capacity / 3600
         df['soc'] = soc
@@ -279,12 +278,13 @@ class PreprocessCalceA123(BasePreProcess):
 
         charging_phases = ['charging_1', 'charging_2', 'charging_3']
 
-        coulumb_counting = np.cumsum(df[current_col] * df[time_col].diff().fillna(0)) / 3600
-        df['coulumb_counting'] = coulumb_counting
         charging_phase_capacity = np.zeros([len(charging_phases)])
         for i, charging_phase in enumerate(charging_phases):
-            charging_phase_df = df[df['testpart'] == charging_phase]
-            charging_phase_capacity[i] = charging_phase_df['coulumb_counting'].max()
+            charging_phase_df = df[df['testpart'] == charging_phase].copy()
+            time_diff = charging_phase_df[time_col].diff().fillna(charging_phase_df[time_col].diff().iloc[1])
+            coulumb_counting = np.cumsum(charging_phase_df[current_col] * time_diff) / 3600
+            charging_phase_df.loc[:, 'coulumb_counting'] = coulumb_counting
+            charging_phase_capacity[i] = charging_phase_df['coulumb_counting'].iloc[-1] - charging_phase_df['coulumb_counting'].iloc[0]
 
-        mean_capacity = charging_phase_capacity.mean()
-        return mean_capacity
+        capacity = charging_phase_capacity.mean()
+        return capacity
