@@ -61,19 +61,20 @@ class BasePreProcess:
         return df
 
     def plot(self, df,
-             x_axis='run_time',
-             y_axes:list = None,
+             x_axis: str,
+             y_axes: list,
              conditions: dict=None,
              downsampling_factor: int = 100):
 
-        if y_axes is None:
-            y_axes = ['c_cur', 'c_vol']
         if conditions:
             for col, value in conditions.items():
                 df = df[df[col] == value]
 
-        for y_axis in y_axes:
-            plt.plot(df[x_axis][::downsampling_factor], df[y_axis][::downsampling_factor], label=y_axis)
+        fig, ax = plt.subplots(len(y_axes), 1, sharex=True)
+        for i, y_axis in enumerate(y_axes):
+            ax[i].plot(df[x_axis][::downsampling_factor], df[y_axis][::downsampling_factor], label=y_axis)
+            ax[i].set_ylabel(str(y_axis))
+            ax[i].grid(True)
         plt.xlabel(str(x_axis))
         plt.legend()
         plt.show()
@@ -204,10 +205,10 @@ class PreprocessCalceA123(BasePreProcess):
             df = pd.read_excel(file_path, sheet_name="Sheet1")
             df = self.interpolate_data(df, time_col="Test_Time(s)", time_res=0.5)
             temp = self._extract_parameters(file_name)
-            df = self._identify_test_part(df)
-            calce_capacity_soc_calculation = CalceCapacityAndSOCCalculation()
-            capacity = calce_capacity_soc_calculation.capacity_calculation(df)
             df['amb_temp'] = temp
+            df = self._identify_test_part(df)
+            df = self.soc_calculation(df)
+            self.plot(df, x_axis='Test_Time(s)' , y_axes=['soc', 'Voltage(V)', "Current(A)"], downsampling_factor=10)
             df_list.append(df)
 
         df = pd.concat(df_list, axis=0)
@@ -249,3 +250,41 @@ class PreprocessCalceA123(BasePreProcess):
                 charging_start_indices.append(flips_list[idx_pos - 1] + 1)
 
         return charging_start_indices, charging_end_indices
+
+    def soc_calculation(self,
+                        df: pd.DataFrame,
+                        time_col: str ="Test_Time(s)",
+                        current_col: str = 'Current(A)') -> pd.DataFrame:
+
+        capacity = self.capacity_calculation(df)
+
+        discharging_phases = ['DST', 'US06', 'FUD']
+        df['eta'] = float(1)
+        df.loc[df['testpart'].isin(discharging_phases), 'eta'] = 0.99
+
+        soc = np.cumsum(df[current_col] / df['eta'] * df[time_col].diff().fillna(0)) / capacity / 3600
+        df['soc'] = soc
+        # calibrating the end of the charging cycles to be 1 soc
+        _, charging_end_indices = self._identify_constant_charging_indices(df)
+
+        charging_end_socs = df.loc[charging_end_indices, 'soc']
+        mean_charging_end_soc = charging_end_socs.mean()
+        df['soc'] = df['soc'] - mean_charging_end_soc + 1
+        return df
+
+    def capacity_calculation(self,
+                             df: pd.DataFrame,
+                             time_col: str="Test_Time(s)",
+                             current_col: str="Current(A)") -> float:
+
+        charging_phases = ['charging_1', 'charging_2', 'charging_3']
+
+        coulumb_counting = np.cumsum(df[current_col] * df[time_col].diff().fillna(0)) / 3600
+        df['coulumb_counting'] = coulumb_counting
+        charging_phase_capacity = np.zeros([len(charging_phases)])
+        for i, charging_phase in enumerate(charging_phases):
+            charging_phase_df = df[df['testpart'] == charging_phase]
+            charging_phase_capacity[i] = charging_phase_df['coulumb_counting'].max()
+
+        mean_capacity = charging_phase_capacity.mean()
+        return mean_capacity

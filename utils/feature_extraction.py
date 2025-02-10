@@ -166,28 +166,3 @@ class CalceCapacityAndSOCCalculation:
     def __init__(self):
         pass
 
-    def soc_calculation(self,
-                        df: pd.DataFrame,
-                        current_col: str) -> pd.DataFrame:
-
-        capacity = self.capacity_calculation(df)
-        return df
-
-    def capacity_calculation(self,
-                             df: pd.DataFrame,
-                             time_col: str="Test_Time(s)",
-                             current_col: str="Current(A)") -> float:
-
-        charge_accumulation = np.cumsum(df[current_col] * df[time_col].diff().fillna(0)) / 3600
-        df['charge_accumulation'] = charge_accumulation
-        charging_phases = ['charging_1', 'charging_2', 'charging_3']
-        phase_capacity = np.zeros([len(charging_phases)])
-        for i, phase in enumerate(charging_phases):
-            phase_df = df[df['testpart'] == phase]
-            phase_capacity[i] = phase_df['charge_accumulation'].max()
-
-        discharging_phases = ['DST', 'US06', 'FUD']
-
-
-        mean_capacity = phase_capacity.mean()
-        return mean_capacity
