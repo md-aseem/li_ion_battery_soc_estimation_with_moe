@@ -31,7 +31,8 @@ class TrainEvalParams:
 
 @dataclass
 class VanillaNNParams:
-    hidden_dim: int = 128
+    hidden_dim: int = 32
+    n_hidden_layers: int = 4
 
 @dataclass
 class MoENNParams:
@@ -39,7 +40,7 @@ class MoENNParams:
     n_experts: int = 8
     top_k: int = 1
     n_layers_per_expert: int = 1
-    hidden_dim: int = 64
+    hidden_dim: int = 32
     gating_dim: int = 32
     gating_noise_std: float = 1e-4
     balancing_coef: float= 1e-3

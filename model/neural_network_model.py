@@ -1,31 +1,46 @@
 import torch.nn as nn
 import torch
 
-class MexicanHat(nn.Module):
-    def __init__(self, alpha_init=1):
-        super(MexicanHat, self).__init__()
-        self.alpha = nn.Parameter(torch.tensor(alpha_init, dtype=torch.float32), requires_grad=True)
-    def forward(self, x):
-        x = (1-x**2*self.alpha**2)*torch.exp(-x**2*self.alpha**2)
-        return x
+from config import VanillaNNParams
 
-class VoltageNN(nn.Module):
+
+class VanillaNeuralNetwork(nn.Module):
     """Neural network to predict terminal voltage from SOC, current, and temperature."""
 
     def __init__(self,
                  in_features: int,
-                 hidden_feature: int,
-                 out_features: int):
+                 out_features: int,
+                 nn_params
+                 ):
         super().__init__()
-        self.fc = nn.Sequential(
-            nn.Linear(in_features, hidden_feature),  # Input: [SOC, current, temperature]
-            MexicanHat(),
-            nn.Linear(hidden_feature, hidden_feature),
-            MexicanHat(),
-            nn.Linear(hidden_feature, hidden_feature),
-            MexicanHat(),
-            nn.Linear(hidden_feature, out_features)  # Output: Voltage
-        )
+
+        self.n_hidden_layers = nn_params.n_hidden_layers
+        self.hidden_dim = nn_params.hidden_dim
+
+        self.fc1 = nn.Linear(in_features, self.hidden_dim)
+        self.act = nn.Softplus()
+        self.layers = nn.ModuleList([nn.Sequential(nn.Linear(self.hidden_dim, self.hidden_dim),
+                                                   nn.Softplus()) for _ in range(self.n_hidden_layers)])
+        self.fc2 = nn.Linear(self.hidden_dim, out_features)
+
 
     def forward(self, x):
-        return self.fc(x)
+        x = self.act(self.fc1(x))
+        for layer in self.layers:
+            x = layer(x)
+        x = self.fc2(x)
+        return x
+
+
+if __name__ == "__main__":
+
+    in_features = 15
+    out_features = 1
+    batch_size = 100
+    nn_params = VanillaNNParams()
+    test_nn_model = VanillaNeuralNetwork(in_features, out_features, nn_params)
+
+    x = torch.rand([batch_size, in_features])
+    y = test_nn_model(x)
+
+    print(f"Total Params: {sum([p.numel() for p in test_nn_model.parameters()])}")
