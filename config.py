@@ -44,3 +44,7 @@ class MoENNParams:
     gating_dim: int = 32
     gating_noise_std: float = 1e-4
     balancing_coef: float= 1e-3
+
+@dataclass
+class ExperimentalDesignParams:
+    n_runs: int = 5

@@ -93,6 +93,17 @@ class BasePreProcess:
         df = pd.concat([df, pd.DataFrame(shifted_cols, index=df.index)], axis=1).dropna(axis=0)
         return df
 
+    def add_sequence_data_per_col(self, df: pd.DataFrame,
+                          seq_cols: List[str],
+                          history_length: List[int]) -> pd.DataFrame:
+
+        shifted_cols = {}
+        for i, seq_col in enumerate(seq_cols):
+            for num_point in range(1, history_length[i] + 1):
+                shifted_cols[f"{seq_col}-{num_point}"] = df[seq_col].shift(num_point)
+        df = pd.concat([df, pd.DataFrame(shifted_cols, index=df.index)], axis=1).dropna(axis=0)
+        return df
+
 
 class PreprocessMultiStageData(BasePreProcess):
     def __init__(self, data_params):
