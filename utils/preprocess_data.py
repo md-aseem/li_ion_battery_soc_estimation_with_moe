@@ -1,4 +1,6 @@
 import warnings
+
+from config import HistoryColsParams, CalceDataParams
 from utils.data_import import import_datafile
 from typing import Dict, List, Optional
 import numpy as np
@@ -47,12 +49,14 @@ class BasePreProcess:
 
     def standardize_data(self, df, feature_cols,
                          scaler=None):
+
+        temp_df = df.copy()
         if scaler is None:
             scaler = StandardScaler()
-            scaler.fit(df[feature_cols])
+            scaler.fit(temp_df[feature_cols])
 
-        df[feature_cols] = scaler.transform(df[feature_cols])
-        return df, scaler
+        temp_df[feature_cols] = scaler.transform(temp_df[feature_cols])
+        return temp_df, scaler
 
     def filter(self, df: pd.DataFrame, filtering_conditions: Dict):
 
@@ -207,26 +211,34 @@ class PreprocessMultiStageData(BasePreProcess):
 
 
 class PreprocessCalceA123(BasePreProcess):
-    def __init__(self, calce_data_params):
+    def __init__(self,
+                 calce_data_params: CalceDataParams,
+                 history_col_params: HistoryColsParams):
         super().__init__()
+
         self.calce_data_params = calce_data_params
+        self.seq_cols_params = history_col_params
 
     def load_dfs(self, data_path):
 
         df_list = []
         for file_path in glob.glob(os.path.join(data_path, "**", "*.xlsx"), recursive=True):
-            file_name = os.path.basename(file_path)
-            df = pd.read_excel(file_path, sheet_name="Sheet1")
-            df = self.interpolate_data(df, time_col="Test_Time(s)", time_res=self.calce_data_params.time_res)
-            temp = self._extract_parameters(file_name)
-            df['amb_temp'] = temp
-            df = self._identify_test_part(df)
-            df = self.soc_calculation(df)
+            df = self.load_df(file_path)
             df_list.append(df)
 
         df = pd.concat(df_list, axis=0)
         return df
 
+    def load_df(self, file_path):
+        file_name = os.path.basename(file_path)
+        df = pd.read_excel(file_path, sheet_name="Sheet1")
+        df = self.interpolate_data(df, time_col="Test_Time(s)", time_res=self.calce_data_params.time_res)
+        temp = self._extract_parameters(file_name)
+        df['amb_temp'] = temp
+        df = self._identify_test_part(df)
+        df = self.soc_calculation(df)
+        df = self.add_sequence_data_per_col(df, self.seq_cols_params.cols, self.seq_cols_params.history_lengths)
+        return df
     def _extract_parameters(self, file_name):
         temperature = file_name.split('FUDS-')[-1].split("-")[0]
         return int(temperature)
