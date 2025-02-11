@@ -57,7 +57,7 @@ class BasePreProcess:
     def filter(self, df: pd.DataFrame, filtering_conditions: Dict):
 
         for col, value in filtering_conditions.items():
-            df = df[df[col].isin(value)]
+            df = df[df[col].isin(value)].copy()
         return df
 
     def plot(self, df,
@@ -207,16 +207,17 @@ class PreprocessMultiStageData(BasePreProcess):
 
 
 class PreprocessCalceA123(BasePreProcess):
-    def __init__(self):
+    def __init__(self, calce_data_params):
         super().__init__()
-        pass
+        self.calce_data_params = calce_data_params
+
     def load_dfs(self, data_path):
 
         df_list = []
         for file_path in glob.glob(os.path.join(data_path, "**", "*.xlsx"), recursive=True):
             file_name = os.path.basename(file_path)
             df = pd.read_excel(file_path, sheet_name="Sheet1")
-            df = self.interpolate_data(df, time_col="Test_Time(s)", time_res=0.5)
+            df = self.interpolate_data(df, time_col="Test_Time(s)", time_res=self.calce_data_params.time_res)
             temp = self._extract_parameters(file_name)
             df['amb_temp'] = temp
             df = self._identify_test_part(df)

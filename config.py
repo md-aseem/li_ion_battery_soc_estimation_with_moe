@@ -25,14 +25,14 @@ class CalceDataParams:
 @dataclass
 class TrainEvalParams:
     learning_rate : float = 1e-3
-    n_epochs: int = 50
-    batch_size: int = 512
+    n_epochs: int = 20
+    batch_size: int = 256
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 @dataclass
 class VanillaNNParams:
-    hidden_dim: int = 32
-    n_hidden_layers: int = 4
+    hidden_dim: int = 64
+    n_hidden_layers: int = 2
 
 @dataclass
 class MoENNParams:

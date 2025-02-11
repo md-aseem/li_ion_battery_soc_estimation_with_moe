@@ -8,7 +8,6 @@ from matplotlib import pyplot as plt
 from utils.preprocess_data import PreprocessCalceA123
 from torch.utils.data import Dataset, DataLoader
 from config import TrainEvalParams, VanillaNNParams, MoENNParams, CalceDataParams
-from model.neural_network_model import VoltageNN
 from model.mixture_of_experts_nn import MoENeuralNetwork
 import numpy as np
 from utils.helpers import parameter_count
@@ -74,10 +73,6 @@ class Trainer:
             if epoch % (self.training_params.n_epochs//10) == 0:
                 print(f"Epoch: {epoch}, Loss: {avg_loss:.7f}")
 
-            if avg_loss < min_loss:
-                min_loss = avg_loss
-                torch.save(model.state_dict(), "saved/best_model.pt")
-
         model.eval()
 
         return model, losses
@@ -95,17 +90,13 @@ class Trainer:
                     gate_loss = 0 # no gate loss for regular NNs
                     y_pred = model_out
 
-                all_y.append(y.cpu().numpy())
-                all_y_pred.append(y_pred.cpu().numpy())
+                all_y.append(y)
+                all_y_pred.append(y_pred)
 
-        all_y = np.concatenate(all_y)
-        all_y_pred = np.concatenate(all_y_pred)
+        all_y = torch.concatenate(all_y)
+        all_y_pred = torch.concatenate(all_y_pred)
 
-        plt.plot(all_y, label="True")
-        plt.plot(all_y_pred, label="Predicted")
-        plt.legend()
-        plt.show()
-        pass
+        return all_y, all_y_pred
 
 if __name__ == "__main__":
     data_loading_start_time = time.time()
