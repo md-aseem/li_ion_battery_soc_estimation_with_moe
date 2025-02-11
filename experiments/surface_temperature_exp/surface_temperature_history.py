@@ -73,7 +73,7 @@ for history_length in tqdm(HISTORY_LENGTHS):
 
         training_start_time = time.time()
         trainer = Trainer(nn_model, train_params, train_params.device)
-        nn_model, losses = trainer.train(train_loader)
+        nn_model, losses = trainer.train(train_loader, val_loader)
         training_end_time = time.time()
         training_time = (training_end_time - training_start_time)
         print(f"Training Time: {training_time:.2f} secs")
@@ -87,14 +87,16 @@ for history_length in tqdm(HISTORY_LENGTHS):
 
         y, y_pred = trainer.evaluate(val_loader)
         plt.figure()
-        plt.plot(y.cpu().numpy()[:10000], 'o')
-        plt.plot(y_pred.cpu().numpy()[:10000], 'o')
+        plt.plot(y.cpu().numpy()[:10000], 'o', label="True")
+        plt.plot(y_pred.cpu().numpy()[:10000], 'o', label="Predicted")
+        plt.legend()
         plt.savefig(f"results/prediction_{history_length}.png")
         plt.show()
 
-        mse_loss = F.mse_loss(y, y_pred.squeeze(-1))
-        mae_loss = torch.abs(y-y_pred)/len(y)
+        mse_loss = F.mse_loss(y, y_pred)
+        mae_loss = torch.abs(y-y_pred).mean()
 
+        print(f"MAE: {mse_loss:.2f}\nMSE: {mse_loss:.2f}")
         mse_list.append(mse_loss); mae_list.append(mae_loss); history_length_list.append(history_length); training_time_list.append(training_time)
 
 

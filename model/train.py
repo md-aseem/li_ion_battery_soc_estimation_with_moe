@@ -39,7 +39,7 @@ class Trainer:
 
         self.device = device if device else ('cuda' if torch.cuda.is_available() else 'cpu')
 
-    def train(self, train_loader):
+    def train(self, train_loader, val_loader=None):
 
         model = self.model
         model.train()
@@ -62,7 +62,7 @@ class Trainer:
                     gate_loss = 0 # no gate loss for regular NNs
                     y_pred = model_out
 
-                loss = loss_fn(y_pred.squeeze(-1), y) + gate_loss
+                loss = torch.abs(y_pred.squeeze(-1) - y).mean() + gate_loss
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item()
@@ -71,7 +71,11 @@ class Trainer:
             losses.append(avg_loss)
 
             if epoch % (self.training_params.n_epochs//10) == 0:
-                print(f"Epoch: {epoch}, Loss: {avg_loss:.7f}")
+                print(f"Epoch: {epoch}, Loss: {avg_loss:.6f}")
+                if val_loader:
+                    y, y_pred = self.evaluate(val_loader)
+                    val_loss = torch.abs(y-y_pred.squeeze(-1)).mean()
+                    print(f"Validation Loss: {val_loss:.6f}")
 
         model.eval()
 
@@ -91,7 +95,7 @@ class Trainer:
                     y_pred = model_out
 
                 all_y.append(y)
-                all_y_pred.append(y_pred)
+                all_y_pred.append(y_pred.squeeze(-1))
 
         all_y = torch.concatenate(all_y)
         all_y_pred = torch.concatenate(all_y_pred)

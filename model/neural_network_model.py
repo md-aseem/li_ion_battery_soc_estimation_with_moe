@@ -18,9 +18,9 @@ class VanillaNeuralNetwork(nn.Module):
         self.hidden_dim = nn_params.hidden_dim
 
         self.fc1 = nn.Linear(in_features, self.hidden_dim)
-        self.act = nn.Softplus()
+        self.act = nn.LeakyReLU()
         self.layers = nn.ModuleList([nn.Sequential(nn.Linear(self.hidden_dim, self.hidden_dim),
-                                                   nn.Softplus()) for _ in range(self.n_hidden_layers)])
+                                                   nn.LeakyReLU()) for _ in range(self.n_hidden_layers)])
         self.fc2 = nn.Linear(self.hidden_dim, out_features)
 
 
