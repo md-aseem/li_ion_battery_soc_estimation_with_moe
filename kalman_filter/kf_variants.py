@@ -134,7 +134,7 @@ class AEKF:
             V_measured (float): Measured voltage.
             T_measured (float): Measured temperature.
             dt (float): Time step.
-            model (torch.nn.Module): Neural network model for voltage prediction.
+            model (torch.nn.Module): Neural network flat_feature_models for voltage prediction.
 
         Returns:
             float: Updated SOC estimate.

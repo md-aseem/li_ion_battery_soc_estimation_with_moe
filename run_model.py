@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 from kalman_filter.kf_variants import SimpleEKF
-from model.mixture_of_experts_nn import VoltageNN
+from flat_feature_models.moe_nn import VoltageNN
 
 # Set seed for reproducibility
 np.random.seed(42)
@@ -59,7 +59,7 @@ train_data = TensorDataset(torch.FloatTensor(X_train), torch.FloatTensor(y_train
 val_data = TensorDataset(torch.FloatTensor(X_val), torch.FloatTensor(y_val))
 train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
 
-# Initialize model, loss, optimizer
+# Initialize flat_feature_models, loss, optimizer
 model = VoltageNN()
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)

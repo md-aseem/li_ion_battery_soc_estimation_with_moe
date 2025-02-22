@@ -26,25 +26,37 @@ class CalceDataParams:
 class TrainEvalParams:
     learning_rate : float = 3e-3
     n_epochs: int = 200
-    batch_size: int = 256
+    batch_size: int = 512
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 @dataclass
 class VanillaNNParams:
-    hidden_dim: int = 128
-    n_hidden_layers: int = 3
+    hidden_dim: int = 512
+    n_hidden_layers: int = 6
 
 @dataclass
 class MoENNParams:
 
-    n_experts: int = 8
+    n_experts: int = 16
     top_k: int = 1
     n_layers_per_expert: int = 1
-    hidden_dim: int = 32
-    gating_dim: int = 32
-    gating_noise_std: float = 1e-4
-    balancing_coef: float= 1e-3
+    hidden_dim: int = 64
+    gating_dim: int = 64
+    gating_noise_std: float = 0
+    balancing_coef: float= 1e-4
 
 @dataclass
 class ExperimentalDesignParams:
     n_runs: int = 5
+
+@dataclass
+class HistoryColsParams:
+    cols: List[str] = field(default_factory= lambda: ['Voltage(V)', 'Current(A)', 'Temperature (C)_1'])
+    history_lengths: List[int] = field(default_factory=lambda: [50, 50, 50])
+
+@dataclass
+class TransformerParams:
+    n_embd: int = 32
+    n_heads: int = 4
+    n_blocks: int = 1
+    dropout: float = 0.05

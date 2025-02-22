@@ -1,5 +1,7 @@
 import warnings
 
+import torch
+
 from config import HistoryColsParams, CalceDataParams
 from utils.data_import import import_datafile
 from typing import Dict, List, Optional
@@ -108,6 +110,23 @@ class BasePreProcess:
         df = pd.concat([df, pd.DataFrame(shifted_cols, index=df.index)], axis=1).dropna(axis=0)
         return df
 
+    def add_3d_sequence_data_per_col(self, df: pd.DataFrame,
+                          seq_cols: List[str],
+                          target_col: str,
+                          history_length: int) -> (torch.Tensor, torch.Tensor):
+        """Args:
+        df:
+        seq_cols:
+        target_col:
+        history_length:
+
+        Returns:
+            feature vector(B, T, n_seq_cols), target vector (B, T, 1)"""
+
+        features = np.lib.stride_tricks.sliding_window_view(df[seq_cols].values, [history_length, len(seq_cols)], axis=(0, 1)).squeeze(axis=1)
+        target = np.lib.stride_tricks.sliding_window_view(df[target_col].values, [history_length], axis=0)
+        features = torch.tensor(features, dtype=torch.float32); target = torch.tensor(target, dtype=torch.float32).squeeze(dim=-1)
+        return features, target
 
 class PreprocessMultiStageData(BasePreProcess):
     def __init__(self, data_params):
@@ -219,25 +238,29 @@ class PreprocessCalceA123(BasePreProcess):
         self.calce_data_params = calce_data_params
         self.seq_cols_params = history_col_params
 
-    def load_dfs(self, data_path):
+    def load_dfs(self, data_path,
+                 create_sequence_cols: bool=False):
 
         df_list = []
         for file_path in glob.glob(os.path.join(data_path, "**", "*.xlsx"), recursive=True):
-            df = self.load_df(file_path)
+            df = self.load_df(file_path, create_sequence_cols)
             df_list.append(df)
 
         df = pd.concat(df_list, axis=0)
         return df
 
-    def load_df(self, file_path):
+    def load_df(self, file_path,
+                create_sequence_cols: bool=False):
         file_name = os.path.basename(file_path)
+        print(f"Loading file: {file_name}")
         df = pd.read_excel(file_path, sheet_name="Sheet1")
         df = self.interpolate_data(df, time_col="Test_Time(s)", time_res=self.calce_data_params.time_res)
         temp = self._extract_parameters(file_name)
         df['amb_temp'] = temp
         df = self._identify_test_part(df)
         df = self.soc_calculation(df)
-        df = self.add_sequence_data_per_col(df, self.seq_cols_params.cols, self.seq_cols_params.history_lengths)
+        if create_sequence_cols:
+            df = self.add_sequence_data_per_col(df, self.seq_cols_params.cols, self.seq_cols_params.history_lengths)
         return df
     def _extract_parameters(self, file_name):
         temperature = file_name.split('FUDS-')[-1].split("-")[0]

@@ -1,6 +1,5 @@
 import torch.nn as nn
 import torch
-
 from config import VanillaNNParams
 
 
@@ -18,10 +17,11 @@ class VanillaNeuralNetwork(nn.Module):
         self.hidden_dim = nn_params.hidden_dim
 
         self.fc1 = nn.Linear(in_features, self.hidden_dim)
-        self.act = nn.LeakyReLU()
+        self.act = nn.Sigmoid()
         self.layers = nn.ModuleList([nn.Sequential(nn.Linear(self.hidden_dim, self.hidden_dim),
-                                                   nn.LeakyReLU()) for _ in range(self.n_hidden_layers)])
+                                                   nn.Sigmoid()) for _ in range(self.n_hidden_layers)])
         self.fc2 = nn.Linear(self.hidden_dim, out_features)
+        self.sigmoid = nn.Sigmoid()
 
 
     def forward(self, x):
@@ -29,7 +29,7 @@ class VanillaNeuralNetwork(nn.Module):
         for layer in self.layers:
             x = layer(x)
         x = self.fc2(x)
-        return x
+        return torch.clip(x, 0, 1)
 
 
 if __name__ == "__main__":
